@@ -69,6 +69,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "ما عندك صلاحية إنشاء أكواد لهذا العنصر" }, 403);
     }
 
+    // الكود المدفوع يُنشئ صف بيع بالدفتر عند التفعيل (حصة مدرس مستحقة الدفع)،
+    // فلا يحق للمدرس تحديده بنفسه وإلا قدر يختلق مبيعات لنفسه. واجهة المدرس لا ترسله أصلاً.
+    if (isPaid && !isAdminCaller) {
+      return jsonResponse({ error: "تحديد الكود كمدفوع للأدمن فقط" }, 403);
+    }
+
     if (agentId) {
       const { data: agent, error: agentErr } = await admin
         .from("agents")
