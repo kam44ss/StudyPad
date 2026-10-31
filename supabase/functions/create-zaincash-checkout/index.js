@@ -8,7 +8,11 @@ const ZAINCASH_MSISDN = Deno.env.get("ZAINCASH_MSISDN");
 const ZAINCASH_MERCHANT_ID = Deno.env.get("ZAINCASH_MERCHANT_ID");
 const ZAINCASH_SECRET = Deno.env.get("ZAINCASH_SECRET");
 const ZAINCASH_PRODUCTION = Deno.env.get("ZAINCASH_PRODUCTION") === "true";
-const SITE_URL = Deno.env.get("SITE_URL") || "http://localhost:5000";
+// ZainCash يعيد المستخدم (مع توكن النتيجة) إلى هذا العنوان، وهو عنوان دالة zaincash-redirect
+// على Supabase نفسه (https://<ref>.supabase.co/functions/v1/...) وليس عنوان الموقع الثابت
+// SITE_URL - الموقع الثابت (Vercel/Netlify) لا يحتوي مسار /functions/v1 أصلاً.
+// SUPABASE_URL يُحقن تلقائياً في كل Edge Function.
+const FUNCTIONS_BASE_URL = `${(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "")}/functions/v1`;
 
 const BASE_URL = ZAINCASH_PRODUCTION ? "https://api.zaincash.iq" : "https://test.zaincash.iq";
 
@@ -116,7 +120,7 @@ Deno.serve(async (req) => {
         serviceType: `${bundleId ? "Bundle" : "Lesson"}: ${title}`.slice(0, 200),
         msisdn: ZAINCASH_MSISDN,
         orderId: order.id,
-        redirectUrl: `${SITE_URL.replace(/\/$/, "")}/functions/v1/zaincash-redirect`,
+        redirectUrl: `${FUNCTIONS_BASE_URL}/zaincash-redirect`,
       },
       ZAINCASH_SECRET,
       4 * 60 * 60 // 4 ساعات صلاحية

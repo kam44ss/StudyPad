@@ -4,9 +4,13 @@ import { getAdminClient, getAuthenticatedUser, getUserRole } from "../_shared/su
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // بدون أحرف متشابهة (0/O, 1/I)
 
 function generateCode() {
+  // الأكواد تُعامل كمال (كل كود = درس مدفوع)، فلا يُستخدم Math.random() لأنه قابل للتنبؤ.
+  // طول الأبجدية 32 يقسم 256 تماماً، فلا يوجد انحياز إحصائي عند أخذ باقي القسمة.
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
   let raw = "";
-  for (let i = 0; i < 10; i++) {
-    raw += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+  for (const b of bytes) {
+    raw += ALPHABET[b % ALPHABET.length];
   }
   return raw.match(/.{1,5}/g).join("-"); // مثال: AB3XZ-9KLMN
 }

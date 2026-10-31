@@ -1,0 +1,83 @@
+# إعدادات Supabase CLI.
+#
+# السبب الأساسي لوجود هذا الملف: الـ CLI يفترض أن نقطة دخول كل Edge Function هي index.ts،
+# ودوال هذا المشروع مكتوبة بـ index.js، فبدون تحديد entrypoint صراحةً قد يفشل
+# `supabase functions deploy` (ومعه خطوة النشر في .github/workflows/deploy.yml).
+#
+# project_id هنا اسم محلي فقط (للتطوير المحلي) - المشروع البعيد يُحدَّد بـ `supabase link --project-ref`.
+project_id = "studypad"
+
+[functions.admin-resolve-stuck-order]
+entrypoint = "./functions/admin-resolve-stuck-order/index.js"
+
+[functions.check-quiz-answer]
+entrypoint = "./functions/check-quiz-answer/index.js"
+
+[functions.create-agent]
+entrypoint = "./functions/create-agent/index.js"
+
+[functions.create-discount-code]
+entrypoint = "./functions/create-discount-code/index.js"
+
+[functions.create-parent-view-token]
+entrypoint = "./functions/create-parent-view-token/index.js"
+
+[functions.create-teacher]
+entrypoint = "./functions/create-teacher/index.js"
+
+[functions.create-zaincash-checkout]
+entrypoint = "./functions/create-zaincash-checkout/index.js"
+
+[functions.generate-practice-set]
+entrypoint = "./functions/generate-practice-set/index.js"
+
+[functions.generate-redemption-codes]
+entrypoint = "./functions/generate-redemption-codes/index.js"
+
+[functions.get-admin-dashboard-stats]
+entrypoint = "./functions/get-admin-dashboard-stats/index.js"
+
+[functions.get-agent-earnings]
+entrypoint = "./functions/get-agent-earnings/index.js"
+
+[functions.get-answer-hint]
+entrypoint = "./functions/get-answer-hint/index.js"
+
+[functions.get-leaderboard]
+entrypoint = "./functions/get-leaderboard/index.js"
+
+[functions.get-lesson-content]
+entrypoint = "./functions/get-lesson-content/index.js"
+
+[functions.get-parent-view]
+entrypoint = "./functions/get-parent-view/index.js"
+
+[functions.get-teacher-earnings]
+entrypoint = "./functions/get-teacher-earnings/index.js"
+
+[functions.log-client-error]
+entrypoint = "./functions/log-client-error/index.js"
+
+[functions.mark-lesson-complete]
+entrypoint = "./functions/mark-lesson-complete/index.js"
+
+[functions.record-agent-payout]
+entrypoint = "./functions/record-agent-payout/index.js"
+
+[functions.record-refund]
+entrypoint = "./functions/record-refund/index.js"
+
+[functions.record-teacher-payout]
+entrypoint = "./functions/record-teacher-payout/index.js"
+
+[functions.redeem-code]
+entrypoint = "./functions/redeem-code/index.js"
+
+[functions.send-whatsapp-message]
+entrypoint = "./functions/send-whatsapp-message/index.js"
+
+[functions.zaincash-redirect]
+# يستدعيها متصفح الطالب العائد من ZainCash بدون جلسة Supabase؛ التحقق الحقيقي بتوقيع JWT داخل الكود.
+verify_jwt = false
+entrypoint = "./functions/zaincash-redirect/index.js"
+

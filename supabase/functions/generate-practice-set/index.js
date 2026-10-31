@@ -13,8 +13,8 @@ Deno.serve(async (req) => {
     }
 
     const { mode, subject, count, bundleId } = await req.json();
-    if (!mode || !["daily", "custom", "mock_exam"].includes(mode)) {
-      return jsonResponse({ error: "mode يجب أن يكون daily أو custom أو mock_exam" }, 400);
+    if (!mode || !["daily", "custom", "mock_exam", "review"].includes(mode)) {
+      return jsonResponse({ error: "mode يجب أن يكون daily أو custom أو mock_exam أو review" }, 400);
     }
 
     const { data, error } = await admin.rpc("generate_practice_set", {

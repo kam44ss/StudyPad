@@ -64,7 +64,9 @@
 22. `supabase/migrations/0022_streaks_review_flashcards_parentview_hints.sql` — سلسلة أيام، مراجعة، بطاقات، متابعة ولي أمر، تلميح محلي
 23. `supabase/migrations/0023_reduce_hint_strength.sql` — تخفيف قوة تلميح 50/50 (يحذف نصف الخيارات الخاطئة فقط، مو كلها)
 
-> **ملاحظة صريحة:** لم يتيسر تشغيل هذا الـ SQL فعلياً على سيرفر Postgres حقيقي أثناء كتابته (لا توجد بيئة متاحة هنا للاختبار المباشر) — راجعه أو جربه على مشروع تجريبي قبل الإنتاج الفعلي، رغم إني تحققت من صحته بعناية يدوياً.
+24. `supabase/migrations/0024_fix_review_refund_dashboard_and_lockdown.sql` — **إصلاحات من اختبار فعلي**: مراجعة الأخطاء، الاسترجاع (كان يفشل دائماً)، لوحة الأدمن (كانت ترجع admin_only)، وتقييد تنفيذ دوال RPC المالية على `service_role` فقط
+
+> **ملاحظة:** الـ migrations الـ 24 طُبّقت بالترتيب على Postgres 16 حقيقي (مع محاكاة بسيطة لمخططي `auth` و`storage` الخاصين بـ Supabase)، وفُحصت كل دوال plpgsql بأداة `plpgsql_check`، وجُرّبت دوال RPC كلها بسيناريو كامل (شراء، أكواد، استرجاع، شهادات، تمارين). لم تُجرَّب على مشروع Supabase حقيقي (لا يوجد اتصال به من بيئة الاختبار) — جرّبها على مشروع تجريبي أولاً قبل الإنتاج.
 
 ### 3. أنشئ أول حساب أدمن (أنت)
 سجّل دخول بالتطبيق مرة عادية (بريدك الإلكتروني)، ثم من SQL Editor:
@@ -78,29 +80,19 @@ update profiles set role = 'admin' where email = 'بريدك@example.com';
 ```bash
 supabase login
 supabase link --project-ref YOUR_PROJECT_REF
-supabase functions deploy generate-redemption-codes
-supabase functions deploy redeem-code
-supabase functions deploy create-agent
-supabase functions deploy get-agent-earnings
-supabase functions deploy record-agent-payout
-supabase functions deploy get-teacher-earnings
-supabase functions deploy record-teacher-payout
-supabase functions deploy create-zaincash-checkout
-supabase functions deploy zaincash-redirect
-supabase functions deploy create-teacher
-supabase functions deploy get-lesson-content
-supabase functions deploy check-quiz-answer
-supabase functions deploy record-refund
-supabase functions deploy send-whatsapp-message
-supabase functions deploy mark-lesson-complete
-supabase functions deploy create-discount-code
-supabase functions deploy get-admin-dashboard-stats
-supabase functions deploy mark-lesson-complete
-supabase functions deploy get-leaderboard
-supabase functions deploy generate-practice-set
-supabase functions deploy admin-resolve-stuck-order
-supabase functions deploy log-client-error
+# ينشر كل الدوال (24 دالة) دفعة واحدة بدل سردها يدوياً - القائمة اليدوية السابقة كانت
+# ناقصة (create-parent-view-token, get-answer-hint, get-parent-view) وفيها تكرار.
+# supabase/config.toml يحدد نقطة الدخول index.js لكل دالة، ويعطّل verify_jwt لـ zaincash-redirect.
+for d in supabase/functions/*/; do
+  fn=$(basename "$d"); [ "$fn" = "_shared" ] && continue
+  supabase functions deploy "$fn"
+done
 ```
+
+> **مهم:** `zaincash-redirect` يجب أن تبقى بدون التحقق من JWT (`verify_jwt = false` في `config.toml`)
+> لأن متصفح الطالب العائد من زين كاش لا يحمل جلسة Supabase. التحقق الحقيقي يتم داخل الدالة
+> بتوقيع JWT الخاص بزين كاش. ولا تضبط `SITE_URL` على عنوان الدوال: `SITE_URL` هو عنوان
+> الموقع الثابت فقط (صفحة `payment-result.html`)، أما عنوان رجوع زين كاش فيُبنى تلقائياً من `SUPABASE_URL`.
 
 ## مقارنة مع أبواب/مرماز - شنو بنيناه وشنو تأجّل
 
