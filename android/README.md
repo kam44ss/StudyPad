@@ -17,6 +17,25 @@
 3. أضف أيقونة تطبيق حقيقية (`@mipmap/ic_launcher`) — Android Studio يولّدها لك تلقائياً (New > Image Asset)
 4. **مهم:** من لوحة Supabase → Authentication → Email Templates → Magic Link، تأكد إن القالب يحتوي `{{ .Token }}` (الكود المكوّن من 6 أرقام) وليس فقط الرابط `{{ .ConfirmationURL }}` — التطبيق يعتمد على الكود، لا على الرابط (راجع الفقرة التالية).
 
+## متطلبات الأدوات (Toolchain) — مُتحقَّق منها ببناء فعلي
+الكود مكتوب على واجهة **supabase-kt 3.x** (حزم `io.github.jan.supabase.auth.*`)، وهذه تتطلب **Kotlin 2.0+**.
+النسخة السابقة من `build.gradle.kts` كانت تثبّت supabase-kt 2.5.4 (فيها `gotrue-kt` وليس `auth-kt`) مع Kotlin 1.9.24،
+فلم يكن المشروع قادراً حتى على تنزيل تبعياته. الآن:
+
+| المكوّن | النسخة التي بُني واختُبر بها |
+|---|---|
+| Android Gradle Plugin | 8.5.2 |
+| Gradle | 8.14.3 |
+| Kotlin + `kotlin.plugin.serialization` + `kotlin.plugin.compose` | **2.0.21** (في المشروع الأب، `build.gradle.kts` الجذر) |
+| supabase-kt BOM | 3.0.1 |
+| Ktor | 3.0.0 |
+| compileSdk / minSdk | 34 / 24 |
+
+- مع Kotlin 2.0+ لا يوجد `composeOptions.kotlinCompilerExtensionVersion`؛ يُستبدل بإضافة `org.jetbrains.kotlin.plugin.compose` (موجودة بالملف).
+- **ما اختُبر:** `compileDebugKotlin` و`assembleDebug` نجحا بدون أخطاء أو تحذيرات، ونجحت اختبارات الوحدة لأجسام الطلبات وتحليل ردود الـ Edge Functions.
+- **ما لم يُختبر:** التشغيل على جهاز أو محاكي (تسجيل الدخول الفعلي، تشغيل الفيديو، FLAG_SECURE، التنزيل بدون إنترنت).
+- **أجسام الطلبات:** لا تستخدم `mapOf()` بقيم من أنواع مختلفة (نص + رقم + null) كجسم طلب؛ يُترجم بدون أخطاء لكن يفشل وقت التشغيل بـ `SerializationException`. استخدم كلاسات `@Serializable` (انظر آخر `Models.kt`).
+
 ## إصلاح تسجيل الدخول (مهم)
 النسخة الأولى من هذا الكود كانت ترسل "رابط دخول" (Magic Link) وتطلب من المستخدم يفتحه من بريده - بس التطبيق ما كان فيه أي آلية فعلية لاستقبال هذا الرابط ومعالجته (يحتاج إعداد Deep Link/App Link كامل بـ AndroidManifest + كود لالتقاط الرابط). بدون هذا الإعداد، تسجيل الدخول ببساطة **ما كان راح يشتغل**.
 

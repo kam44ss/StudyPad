@@ -3,7 +3,9 @@ package com.mathlessons.app.data
 import com.mathlessons.app.model.AnswerHintResponse
 import com.mathlessons.app.model.BundleInfo
 import com.mathlessons.app.model.BundleLessonLink
+import com.mathlessons.app.model.CheckAnswerRequest
 import com.mathlessons.app.model.CheckAnswerResponse
+import com.mathlessons.app.model.ClientErrorRequest
 import com.mathlessons.app.model.Flashcard
 import com.mathlessons.app.model.LeaderboardEntry
 import com.mathlessons.app.model.LeaderboardResponse
@@ -13,10 +15,12 @@ import com.mathlessons.app.model.LessonContentResponse
 import com.mathlessons.app.model.LessonQuestion
 import com.mathlessons.app.model.MarkCompleteResponse
 import com.mathlessons.app.model.ParentViewTokenResponse
+import com.mathlessons.app.model.PracticeSetRequest
 import com.mathlessons.app.model.PracticeSetResponse
 import com.mathlessons.app.model.Purchase
 import com.mathlessons.app.model.RedeemCodeRequest
 import com.mathlessons.app.model.RedeemCodeResponse
+import com.mathlessons.app.model.ReviewUpsert
 import com.mathlessons.app.model.StreakInfo
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.OtpType
@@ -24,6 +28,7 @@ import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import io.ktor.client.call.body
 
 class LessonsRepository {
 
@@ -149,14 +154,10 @@ class LessonsRepository {
     suspend fun submitReview(lessonId: String, rating: Int, comment: String?) {
         val userId = supabase.auth.currentUserOrNull()?.id ?: return
         supabase.postgrest["lesson_reviews"].upsert(
-            mapOf(
-                "lesson_id" to lessonId,
-                "student_id" to userId,
-                "rating" to rating,
-                "comment" to comment
-            ),
+            ReviewUpsert(lessonId = lessonId, studentId = userId, rating = rating, comment = comment)
+        ) {
             onConflict = "lesson_id,student_id"
-        )
+        }
     }
 
     /**
@@ -166,7 +167,7 @@ class LessonsRepository {
     suspend fun checkQuizAnswer(questionId: String, selectedIndex: Int): CheckAnswerResponse {
         return supabase.functions.invoke(
             function = "check-quiz-answer",
-            body = mapOf("questionId" to questionId, "selectedIndex" to selectedIndex)
+            body = CheckAnswerRequest(questionId = questionId, selectedIndex = selectedIndex)
         ).body()
     }
 
@@ -202,7 +203,7 @@ class LessonsRepository {
         try {
             supabase.functions.invoke(
                 function = "log-client-error",
-                body = mapOf("platform" to "android", "message" to message, "context" to context)
+                body = ClientErrorRequest(platform = "android", message = message, context = context)
             )
         } catch (e: Exception) {
             // لا نطيح التطبيق بسبب فشل تسجيل خطأ ثانوي
@@ -263,12 +264,7 @@ class LessonsRepository {
     ): PracticeSetResponse {
         return supabase.functions.invoke(
             function = "generate-practice-set",
-            body = mapOf(
-                "mode" to mode,
-                "subject" to subject,
-                "count" to count,
-                "bundleId" to bundleId
-            )
+            body = PracticeSetRequest(mode = mode, subject = subject, count = count, bundleId = bundleId)
         ).body()
     }
 }

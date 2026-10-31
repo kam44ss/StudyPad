@@ -172,3 +172,36 @@ data class RedeemCodeResponse(
     val lessonIds: List<String>? = null,
     val error: String? = null
 )
+
+// ---- أجسام الطلبات (Request bodies) ----
+// ملاحظة: لا نستخدم mapOf() بقيم من أنواع مختلفة (String + Int + null) كجسم طلب:
+// kotlinx.serialization لا يقدر يسلسل Map<String, Any> فيفشل الطلب وقت التشغيل
+// (SerializationException) رغم أن الكود يُترجم بدون أخطاء.
+
+@Serializable
+data class CheckAnswerRequest(val questionId: String, val selectedIndex: Int)
+
+@Serializable
+data class PracticeSetRequest(
+    val mode: String,
+    val subject: String? = null,
+    val count: Int? = null,
+    val bundleId: String? = null
+)
+
+@Serializable
+data class ClientErrorRequest(
+    val platform: String,
+    val message: String,
+    val context: Map<String, String?> = emptyMap()
+)
+
+@Serializable
+data class ReviewUpsert(
+    @kotlinx.serialization.SerialName("lesson_id")
+    val lessonId: String,
+    @kotlinx.serialization.SerialName("student_id")
+    val studentId: String,
+    val rating: Int,
+    val comment: String?
+)
