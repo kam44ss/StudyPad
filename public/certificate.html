@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>التحقق من شهادة</title>
+<style>
+  body { margin:0; font-family: Tahoma,'Segoe UI',sans-serif; background:#faf8f5; color:#1c2321; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .card { max-width:420px; text-align:center; padding:32px 24px; border:1px solid #ddd6cc; border-radius:12px; background:white; }
+  .icon { font-size:40px; margin-bottom:12px; }
+  h1 { font-size:18px; margin:0 0 8px; }
+  p { color:#6b6459; font-size:14px; margin:4px 0; }
+</style>
+</head>
+<body>
+<div class="card" id="result">جاري التحقق...</div>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  const SUPABASE_URL = "https://yaedtkfcpygpbyzzkwya.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZWR0a2ZjcHlncGJ5enprd3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTg1MjcsImV4cCI6MjA5OTk3NDUyN30.5ZYj9CwEaaUUF3QcV55fWnes7qVxlaGq3-UYq-f6wtI";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const code = new URLSearchParams(window.location.search).get("code");
+  const el = document.getElementById("result");
+
+  if (!code) {
+    el.innerHTML = "<p>لا يوجد كود شهادة بالرابط.</p>";
+  } else {
+    const { data, error } = await supabase.rpc("verify_certificate", { p_code: code });
+    if (error || !data || !data.valid) {
+      el.innerHTML = `<div class="icon">❌</div><h1>شهادة غير صحيحة</h1><p>لم يتم العثور على شهادة بهذا الكود.</p>`;
+    } else {
+      const date = new Date(data.issued_at).toLocaleDateString("ar-IQ");
+      el.innerHTML = `
+        <div class="icon">🎓</div>
+        <h1>شهادة صحيحة</h1>
+        <p><b>${data.student_name}</b></p>
+        <p>أكمل بنجاح: <b>${data.bundle_title}</b></p>
+        <p>تاريخ الإصدار: ${date}</p>
+      `;
+    }
+  }
+</script>
+</body>
+</html>

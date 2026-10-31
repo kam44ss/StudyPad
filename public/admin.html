@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة الإدارة — الأكواد والوكلاء</title>
+<style>
+  :root { --ink:#1c2321; --paper:#faf8f5; --line:#ddd6cc; --accent:#2f5d50; --muted:#6b6459; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Tahoma,'Segoe UI',sans-serif; background:var(--paper); color:var(--ink); }
+  header { padding:24px 20px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  main { max-width:760px; margin:0 auto; padding:20px; }
+  section { background:white; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:20px; }
+  .tab-btn { padding:8px 14px; border:1px solid var(--line); border-radius:20px; background:white; cursor:pointer; font-size:13px; }
+  .tab-btn.active { background:var(--accent); color:white; border-color:var(--accent); }
+  section h2 { margin:0 0 14px; font-size:16px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, select { width:100%; padding:8px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+  button { margin-top:14px; background:var(--accent); color:white; border:none; border-radius:8px; padding:10px 18px; cursor:pointer; font-size:14px; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  .status { font-size:13px; color:var(--muted); margin-top:8px; }
+  .status.error { color:#a4342a; }
+  textarea.codes { width:100%; margin-top:10px; height:160px; font-family:monospace; direction:ltr; text-align:left; }
+  #loginPanel { text-align:center; padding:40px 20px; }
+  #loginPanel input { margin-bottom:10px; }
+</style>
+</head>
+<body>
+<header><h1>لوحة الإدارة — الأكواد والوكلاء</h1></header>
+
+<div id="loginPanel" style="display:none">
+  <p>سجّل دخول بحساب الأدمن</p>
+  <input id="emailInput" type="email" placeholder="بريدك الإلكتروني" style="max-width:300px">
+  <button id="magicLinkBtn">إرسال رابط الدخول</button>
+</div>
+
+<main id="appPanel" style="display:none">
+  <div id="tabBar" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="tab-btn" data-tab="overview">الرئيسية</button>
+    <button class="tab-btn" data-tab="people">المدرسون والوكلاء</button>
+    <button class="tab-btn" data-tab="codes">الأكواد والخصومات</button>
+    <button class="tab-btn" data-tab="finance">المالية والدعم</button>
+  </div>
+
+  <section data-tab="overview">
+    <h2>حماية إضافية للحساب (MFA)</h2>
+    <p style="font-size:12px;color:var(--muted)">فعّلها من تطبيق مصادقة بجوالك (Google Authenticator أو أي تطبيق مشابه). بعد التفعيل والتحقق، أخبرني عشان أشدّد الحماية على العمليات الحساسة تحتاج هذا التحقق تحديداً.</p>
+    <button id="startMfaEnrollBtn">بدء التفعيل</button>
+    <div id="mfaQrContainer" style="margin-top:10px;display:none">
+      <img id="mfaQrImage" style="max-width:200px">
+      <p style="font-size:12px">امسح الرمز بتطبيق المصادقة، ثم أدخل الرمز المكوّن من 6 أرقام:</p>
+      <input id="mfaVerifyCode" placeholder="123456" style="direction:ltr;text-align:left">
+      <button id="verifyMfaBtn">تحقق وفعّل</button>
+    </div>
+    <div class="status" id="mfaStatus"></div>
+  </section>
+
+  <section data-tab="overview">
+    <h2>لوحة الإحصائيات</h2>
+    <button id="loadDashboardBtn">تحديث</button>
+    <div id="dashboardContent" style="margin-top:14px; font-size:14px; line-height:2"></div>
+  </section>
+
+  <section data-tab="codes">
+    <h2>إنشاء كود خصم</h2>
+    <div class="row">
+      <div><label>الكود</label><input id="discountCodeInput" placeholder="RAMADAN20" style="direction:ltr;text-align:left"></div>
+      <div><label>نسبة الخصم %</label><input id="discountPercentInput" type="number" min="1" max="100" placeholder="20"></div>
+    </div>
+    <div class="row">
+      <div><label>حد الاستخدام (اختياري)</label><input id="discountMaxUses" type="number" min="1" placeholder="بلا حد"></div>
+      <div><label>صلاحية (أيام، اختياري)</label><input id="discountExpiresDays" type="number" min="1" placeholder="بدون انتهاء"></div>
+    </div>
+    <button id="createDiscountBtn">إنشاء</button>
+    <div class="status" id="discountStatus"></div>
+  </section>
+
+  <section data-tab="people">
+    <h2>تحويل مستخدم إلى مدرس</h2>
+    <p style="font-size:12px;color:var(--muted)">المستخدم لازم يكون سجّل دخول مرة واحدة على الأقل بالموقع/التطبيق قبل هذا. خذ الـ User ID من لوحة Supabase → Authentication.</p>
+    <label>User ID</label>
+    <input id="teacherUserId" placeholder="uuid المستخدم">
+    <div class="row">
+      <div><label>الاسم المعروض</label><input id="teacherDisplayName" placeholder="أ. محمد علي"></div>
+      <div><label>نسبة أرباحه %</label><input id="teacherRevShare" type="number" min="0" max="100" placeholder="70"></div>
+    </div>
+    <button id="createTeacherBtn">تحويل إلى مدرس</button>
+    <div class="status" id="teacherStatus"></div>
+  </section>
+
+  <section data-tab="people">
+    <h2>إنشاء وكيل/موزّع جديد</h2>
+    <div class="row">
+      <div><label>الاسم</label><input id="agentName" placeholder="مكتبة المستنصرية"></div>
+      <div><label>الهاتف (اختياري)</label><input id="agentPhone" placeholder="07701234567"></div>
+    </div>
+    <label>نسبة العمولة %</label>
+    <input id="agentCommission" type="number" min="0" max="100" placeholder="10">
+    <button id="createAgentBtn">إنشاء وكيل</button>
+    <div class="status" id="agentStatus"></div>
+  </section>
+
+  <section data-tab="codes">
+    <h2>توليد أكواد تفعيل</h2>
+    <label>النوع</label>
+    <select id="codeTargetType">
+      <option value="lesson">درس واحد</option>
+      <option value="bundle">حزمة/كورس</option>
+    </select>
+    <label id="targetIdLabel">معرّف الدرس (lessonId)</label>
+    <input id="lessonId" placeholder="uuid الدرس أو الحزمة">
+    <div class="row">
+      <div><label>العدد</label><input id="codeCount" type="number" min="1" max="500" value="10"></div>
+      <div><label>صلاحية الكود (أيام، اختياري)</label><input id="expiresInDays" type="number" min="1" placeholder="بدون انتهاء"></div>
+    </div>
+    <label>الوكيل (اختياري)</label>
+    <select id="agentSelect"><option value="">— بدون وكيل —</option></select>
+    <label><input type="checkbox" id="isPaidCheckbox" checked style="width:auto"> كود مدفوع (يُسجَّل بالمحاسبة)</label>
+    <button id="generateBtn">توليد الأكواد</button>
+    <div class="status" id="codesStatus"></div>
+    <textarea class="codes" id="codesOutput" readonly placeholder="الأكواد المولّدة تظهر هنا"></textarea>
+  </section>
+
+  <section data-tab="people">
+    <h2>أرباح المدرسين والوكلاء</h2>
+    <div class="row">
+      <div><label>نوع الحساب</label>
+        <select id="earningsType">
+          <option value="teacher">مدرس</option>
+          <option value="agent">وكيل</option>
+        </select>
+      </div>
+      <div><label>المعرّف (User ID للمدرس، أو Agent ID للوكيل)</label><input id="earningsId"></div>
+    </div>
+    <button id="checkEarningsBtn">عرض الرصيد</button>
+    <div class="status" id="earningsResult"></div>
+
+    <div class="row" style="margin-top:16px">
+      <div><label>مبلغ الدفعة (اللي دفعته فعلياً نقدي/تحويل)</label><input id="payoutAmount" type="number" min="0"></div>
+      <div><label>ملاحظة (اختياري)</label><input id="payoutNote"></div>
+    </div>
+    <button id="recordPayoutBtn">تسجيل دفعة</button>
+    <div class="status" id="payoutStatus"></div>
+  </section>
+
+  <section data-tab="finance">
+    <h2>سجل أخطاء العملاء (بديل Sentry بسيط)</h2>
+    <button id="loadErrorsBtn">تحديث</button>
+    <div id="clientErrorsList" style="margin-top:12px;font-size:12px"></div>
+  </section>
+
+  <section data-tab="finance">
+    <h2>طلبات دفع عالقة (Pending)</h2>
+    <p style="font-size:12px;color:var(--muted)">قبل ما تحسم أي طلب، تأكد من لوحة زين كاش نفسها هل المبلغ انخصم فعلياً أو لا.</p>
+    <button id="loadStuckOrdersBtn">تحديث القائمة</button>
+    <div id="stuckOrdersList" style="margin-top:12px"></div>
+  </section>
+
+  <section data-tab="finance">
+    <h2>استرجاع مبلغ لطالب</h2>
+    <p style="font-size:12px;color:var(--muted)">يعكس المبلغ بسجل الأرباح تلقائياً (يخصم من رصيد المدرس/الوكيل المستحق) ويلغي وصول الطالب للدرس فوراً.</p>
+    <label>معرّف عملية الشراء (Purchase ID)</label>
+    <input id="refundPurchaseId" placeholder="uuid من جدول purchases">
+    <label>سبب الاسترجاع (اختياري)</label>
+    <input id="refundNote">
+    <button id="refundBtn" style="background:#a4342a">استرجاع المبلغ</button>
+    <div class="status" id="refundStatus"></div>
+  </section>
+</main>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  // TODO: نفس إعدادات مشروع Supabase المستخدمة بـ index.html
+  const SUPABASE_URL = "https://yaedtkfcpygpbyzzkwya.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZWR0a2ZjcHlncGJ5enprd3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTg1MjcsImV4cCI6MjA5OTk3NDUyN30.5ZYj9CwEaaUUF3QcV55fWnes7qVxlaGq3-UYq-f6wtI";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  window.onerror = function (message, source, lineno, colno) {
+    fetch(`${SUPABASE_URL}/functions/v1/log-client-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ platform: "web", message: String(message), context: { page: "admin", source, lineno, colno } }),
+    }).catch(() => {});
+  };
+  const loginPanel = document.getElementById("loginPanel");
+  const appPanel = document.getElementById("appPanel");
+
+  document.getElementById("magicLinkBtn").addEventListener("click", async () => {
+    const email = document.getElementById("emailInput").value.trim();
+    if (!email) return;
+    await supabase.auth.signInWithOtp({ email });
+    alert("تفقّد بريدك الإلكتروني للدخول");
+  });
+
+  supabase.auth.onAuthStateChange((_e, session) => render(session));
+  supabase.auth.getSession().then(({ data }) => render(data.session));
+
+  async function callFunction(name, body) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session.access_token;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "حدث خطأ");
+    return result;
+  }
+
+  function render(session) {
+    if (session) {
+      loginPanel.style.display = "none";
+      appPanel.style.display = "block";
+      loadAgents();
+      initTabs();
+    } else {
+      loginPanel.style.display = "block";
+      appPanel.style.display = "none";
+    }
+  }
+
+  let tabsInitialized = false;
+
+  function initTabs() {
+    if (tabsInitialized) return;
+    tabsInitialized = true;
+
+    const buttons = document.querySelectorAll(".tab-btn");
+    const sections = document.querySelectorAll("#appPanel section[data-tab]");
+
+    function showTab(tabName) {
+      sections.forEach((s) => {
+        s.style.display = s.dataset.tab === tabName ? "block" : "none";
+      });
+      buttons.forEach((b) => {
+        b.classList.toggle("active", b.dataset.tab === tabName);
+      });
+    }
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => showTab(btn.dataset.tab));
+    });
+
+    showTab("overview");
+  }
+
+  async function loadAgents() {
+    const select = document.getElementById("agentSelect");
+    const { data, error } = await supabase.from("agents").select("id, name, commission_percent");
+    if (error) return; // متوقع لو الحساب مو أدمن - RLS يرفض القراءة
+    (data || []).forEach((a) => {
+      const opt = document.createElement("option");
+      opt.value = a.id;
+      opt.textContent = `${a.name} (${a.commission_percent}%)`;
+      select.appendChild(opt);
+    });
+  }
+
+  document.getElementById("createAgentBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("agentStatus");
+    const name = document.getElementById("agentName").value.trim();
+    const phone = document.getElementById("agentPhone").value.trim();
+    const commissionPercent = Number(document.getElementById("agentCommission").value);
+
+    if (!name || isNaN(commissionPercent)) {
+      statusEl.textContent = "الاسم ونسبة العمولة مطلوبة";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    try {
+      await callFunction("create-agent", { name, phone, commissionPercent });
+      statusEl.textContent = "تم إنشاء الوكيل بنجاح";
+      statusEl.classList.remove("error");
+      location.reload();
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+
+  document.getElementById("codeTargetType").addEventListener("change", (e) => {
+    document.getElementById("targetIdLabel").textContent =
+      e.target.value === "bundle" ? "معرّف الحزمة (bundleId)" : "معرّف الدرس (lessonId)";
+  });
+
+  document.getElementById("generateBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("codesStatus");
+    const output = document.getElementById("codesOutput");
+    const targetType = document.getElementById("codeTargetType").value;
+    const targetId = document.getElementById("lessonId").value.trim();
+    const count = Number(document.getElementById("codeCount").value);
+    const expiresInDaysRaw = document.getElementById("expiresInDays").value;
+    const agentId = document.getElementById("agentSelect").value || null;
+    const isPaid = document.getElementById("isPaidCheckbox").checked;
+
+    if (!targetId || !count) {
+      statusEl.textContent = "المعرّف والعدد مطلوبان";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    try {
+      const result = await callFunction("generate-redemption-codes", {
+        lessonId: targetType === "lesson" ? targetId : null,
+        bundleId: targetType === "bundle" ? targetId : null,
+        count, isPaid, agentId,
+        expiresInDays: expiresInDaysRaw ? Number(expiresInDaysRaw) : null,
+      });
+      output.value = result.codes.join("\n");
+      statusEl.textContent = `تم توليد ${result.codes.length} كود بنجاح`;
+      statusEl.classList.remove("error");
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+  document.getElementById("loadDashboardBtn").addEventListener("click", async () => {
+    const el = document.getElementById("dashboardContent");
+    el.textContent = "جاري التحميل...";
+    try {
+      const stats = await callFunction("get-admin-dashboard-stats", {});
+      const topLessonsHtml = (stats.top_lessons || [])
+        .map((l) => `<li>${l.title} — ${l.sales_count} مبيعة (${l.revenue} د.ع)</li>`)
+        .join("");
+      el.innerHTML = `
+        <div>💰 إجمالي الأرباح: <b>${stats.total_revenue}</b> د.ع</div>
+        <div>🏦 نصيب المنصة: <b>${stats.total_platform_share}</b> د.ع</div>
+        <div>📈 آخر 30 يوم: <b>${stats.revenue_last_30_days}</b> د.ع</div>
+        <div>🧾 عدد المبيعات: <b>${stats.total_sales_count}</b></div>
+        <div>👥 الطلاب: <b>${stats.total_students}</b> — المدرسين: <b>${stats.total_teachers}</b></div>
+        <div style="margin-top:8px">🏆 أفضل الدروس مبيعاً:</div>
+        <ul style="margin:4px 0">${topLessonsHtml || "<li>لا يوجد بعد</li>"}</ul>
+      `;
+    } catch (e) {
+      el.textContent = "خطأ: " + e.message;
+    }
+  });
+
+  document.getElementById("createDiscountBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("discountStatus");
+    const code = document.getElementById("discountCodeInput").value.trim();
+    const percentOff = Number(document.getElementById("discountPercentInput").value);
+    const maxUsesRaw = document.getElementById("discountMaxUses").value;
+    const expiresDaysRaw = document.getElementById("discountExpiresDays").value;
+
+    if (!code || !percentOff) {
+      statusEl.textContent = "الكود ونسبة الخصم مطلوبان";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    try {
+      const result = await callFunction("create-discount-code", {
+        code, percentOff,
+        maxUses: maxUsesRaw ? Number(maxUsesRaw) : null,
+        expiresInDays: expiresDaysRaw ? Number(expiresDaysRaw) : null,
+      });
+      statusEl.textContent = `تم إنشاء الكود: ${result.code}`;
+      statusEl.classList.remove("error");
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+
+  document.getElementById("createTeacherBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("teacherStatus");
+    const userId = document.getElementById("teacherUserId").value.trim();
+    const displayName = document.getElementById("teacherDisplayName").value.trim();
+    const revenueSharePercent = Number(document.getElementById("teacherRevShare").value);
+
+    if (!userId || isNaN(revenueSharePercent)) {
+      statusEl.textContent = "User ID ونسبة الأرباح مطلوبان";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    try {
+      await callFunction("create-teacher", { userId, displayName, revenueSharePercent });
+      statusEl.textContent = "تم تحويل المستخدم إلى مدرس بنجاح";
+      statusEl.classList.remove("error");
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+
+  document.getElementById("checkEarningsBtn").addEventListener("click", async () => {
+    const resultEl = document.getElementById("earningsResult");
+    const type = document.getElementById("earningsType").value;
+    const id = document.getElementById("earningsId").value.trim();
+    if (!id) return;
+
+    try {
+      const fn = type === "teacher" ? "get-teacher-earnings" : "get-agent-earnings";
+      const body = type === "teacher" ? { teacherId: id } : { agentId: id };
+      const result = await callFunction(fn, body);
+      resultEl.textContent =
+        `الأرباح: ${result.total_earned} — المدفوع: ${result.total_paid_out} — المتبقي: ${result.balance_due}`;
+      resultEl.classList.remove("error");
+    } catch (e) {
+      resultEl.textContent = "خطأ: " + e.message;
+      resultEl.classList.add("error");
+    }
+  });
+
+  document.getElementById("recordPayoutBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("payoutStatus");
+    const type = document.getElementById("earningsType").value;
+    const id = document.getElementById("earningsId").value.trim();
+    const amount = Number(document.getElementById("payoutAmount").value);
+    const note = document.getElementById("payoutNote").value.trim();
+
+    if (!id || !amount) {
+      statusEl.textContent = "المعرّف والمبلغ مطلوبان";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    try {
+      const fn = type === "teacher" ? "record-teacher-payout" : "record-agent-payout";
+      const body = type === "teacher"
+        ? { teacherId: id, amount, note }
+        : { agentId: id, amount, note };
+      await callFunction(fn, body);
+      statusEl.textContent = "تم تسجيل الدفعة";
+      statusEl.classList.remove("error");
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+  document.getElementById("loadErrorsBtn").addEventListener("click", async () => {
+    const listEl = document.getElementById("clientErrorsList");
+    listEl.textContent = "جاري التحميل...";
+
+    const { data, error } = await supabase
+      .from("client_errors")
+      .select("platform, message, context, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error || !data) {
+      listEl.textContent = "خطأ: " + (error ? error.message : "فشل التحميل");
+      return;
+    }
+    if (data.length === 0) {
+      listEl.textContent = "لا توجد أخطاء مسجّلة 🎉";
+      return;
+    }
+
+    listEl.innerHTML = data
+      .map(
+        (e) =>
+          `<div style="border-bottom:1px solid var(--line);padding:6px 0">
+            [${e.platform}] ${new Date(e.created_at).toLocaleString("ar-IQ")}<br>
+            ${e.message}
+          </div>`
+      )
+      .join("");
+  });
+
+  document.getElementById("loadStuckOrdersBtn").addEventListener("click", async () => {
+    const listEl = document.getElementById("stuckOrdersList");
+    listEl.textContent = "جاري التحميل...";
+
+    const { data, error } = await supabase
+      .from("zaincash_orders")
+      .select("id, student_id, amount, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (error || !data) {
+      listEl.textContent = "خطأ: " + (error ? error.message : "فشل التحميل");
+      return;
+    }
+    if (data.length === 0) {
+      listEl.textContent = "لا توجد طلبات عالقة 🎉";
+      return;
+    }
+
+    listEl.innerHTML = "";
+    data.forEach((order) => {
+      const div = document.createElement("div");
+      div.className = "lesson-card";
+      const ageMinutes = Math.round((Date.now() - new Date(order.created_at).getTime()) / 60000);
+      div.innerHTML = `
+        <div style="font-size:13px">
+          <b>${order.amount}</b> د.ع — منذ ${ageMinutes} دقيقة<br>
+          <span style="color:var(--muted);font-size:11px">Order: ${order.id}</span>
+        </div>
+        <div style="margin-top:8px">
+          <button data-id="${order.id}" data-success="true" class="resolve-btn">✅ تم الدفع فعلاً</button>
+          <button data-id="${order.id}" data-success="false" class="resolve-btn" style="background:#a4342a">❌ فشل الدفع</button>
+        </div>
+      `;
+      div.querySelectorAll(".resolve-btn").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const orderId = e.target.dataset.id;
+          const success = e.target.dataset.success === "true";
+          if (!confirm(success ? "تأكيد: الدفع تم فعلاً بزين كاش؟" : "تأكيد: الدفع فشل ولن يُمنح وصول؟")) return;
+          try {
+            await callFunction("admin-resolve-stuck-order", { orderId, success });
+            alert("تم الحسم بنجاح");
+            document.getElementById("loadStuckOrdersBtn").click();
+          } catch (err) {
+            alert("خطأ: " + err.message);
+          }
+        });
+      });
+      listEl.appendChild(div);
+    });
+  });
+
+  let pendingMfaFactorId = null;
+
+  document.getElementById("startMfaEnrollBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("mfaStatus");
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+    if (error) {
+      statusEl.textContent = "خطأ: " + error.message;
+      statusEl.classList.add("error");
+      return;
+    }
+    pendingMfaFactorId = data.id;
+    document.getElementById("mfaQrImage").src = data.totp.qr_code;
+    document.getElementById("mfaQrContainer").style.display = "block";
+    statusEl.textContent = "";
+  });
+
+  document.getElementById("verifyMfaBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("mfaStatus");
+    const code = document.getElementById("mfaVerifyCode").value.trim();
+    if (!code || !pendingMfaFactorId) return;
+
+    const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({
+      factorId: pendingMfaFactorId,
+    });
+    if (challengeErr) {
+      statusEl.textContent = "خطأ: " + challengeErr.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const { error: verifyErr } = await supabase.auth.mfa.verify({
+      factorId: pendingMfaFactorId,
+      challengeId: challenge.id,
+      code,
+    });
+
+    if (verifyErr) {
+      statusEl.textContent = "كود غير صحيح: " + verifyErr.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = "✅ تم تفعيل الحماية الإضافية بنجاح";
+    statusEl.classList.remove("error");
+    document.getElementById("mfaQrContainer").style.display = "none";
+  });
+
+  document.getElementById("refundBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("refundStatus");
+    const purchaseId = document.getElementById("refundPurchaseId").value.trim();
+    const note = document.getElementById("refundNote").value.trim();
+
+    if (!purchaseId) {
+      statusEl.textContent = "معرّف عملية الشراء مطلوب";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    try {
+      await callFunction("record-refund", { purchaseId, note });
+      statusEl.textContent = "تم الاسترجاع وإلغاء الوصول";
+      statusEl.classList.remove("error");
+    } catch (e) {
+      statusEl.textContent = "خطأ: " + e.message;
+      statusEl.classList.add("error");
+    }
+  });
+</script>
+</body>
+</html>

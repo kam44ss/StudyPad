@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>متابعة تقدم الطالب</title>
+<style>
+  body { margin:0; font-family: Tahoma,'Segoe UI',sans-serif; background:#faf8f5; color:#1c2321; }
+  main { max-width:500px; margin:0 auto; padding:24px 20px 60px; }
+  .card { background:white; border:1px solid #ddd6cc; border-radius:10px; padding:16px; margin-bottom:12px; }
+  h1 { font-size:20px; }
+  .streak { font-size:28px; text-align:center; margin:16px 0; }
+  .lesson-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #ddd6cc; font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <div id="result">جاري التحميل...</div>
+</main>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  const SUPABASE_URL = "https://yaedtkfcpygpbyzzkwya.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZWR0a2ZjcHlncGJ5enprd3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTg1MjcsImV4cCI6MjA5OTk3NDUyN30.5ZYj9CwEaaUUF3QcV55fWnes7qVxlaGq3-UYq-f6wtI";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const token = new URLSearchParams(window.location.search).get("token");
+  const resultEl = document.getElementById("result");
+
+  if (!token) {
+    resultEl.innerHTML = "<p>لا يوجد رابط متابعة صحيح.</p>";
+  } else {
+    const { data, error } = await supabase.rpc("get_parent_view", { p_token: token });
+    if (error || !data || !data.valid) {
+      resultEl.innerHTML = "<p>الرابط غير صحيح أو منتهي.</p>";
+    } else {
+      const lessonsHtml = (data.lessons || [])
+        .map((l) => `<div class="lesson-row"><span>${l.title}</span><span>${l.completed ? "✅ مكتمل" : "⏳ قيد التقدم"}</span></div>`)
+        .join("") || "<p>ما اشترى أي درس بعد.</p>";
+
+      const certsHtml = (data.certificates || [])
+        .map((c) => `<div class="lesson-row"><span>🎓 ${c.bundle_title}</span><span>${new Date(c.issued_at).toLocaleDateString("ar-IQ")}</span></div>`)
+        .join("") || "<p>ما حصل على شهادة بعد.</p>";
+
+      resultEl.innerHTML = `
+        <h1>تقدم ${data.student_name}</h1>
+        <div class="card">
+          <div class="streak">🔥 ${data.current_streak} يوم متتالي</div>
+          <div style="text-align:center;font-size:12px;color:#6b6459">أطول سلسلة: ${data.longest_streak} يوم</div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:15px;margin-top:0">الدروس</h3>
+          ${lessonsHtml}
+        </div>
+        <div class="card">
+          <h3 style="font-size:15px;margin-top:0">الشهادات</h3>
+          ${certsHtml}
+        </div>
+      `;
+    }
+  }
+</script>
+</body>
+</html>

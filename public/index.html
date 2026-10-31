@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دروس الرياضيات — الشراء</title>
+<style>
+  :root { --ink:#1c2321; --paper:#faf8f5; --line:#ddd6cc; --accent:#2f5d50; --muted:#6b6459; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Tahoma,'Segoe UI',sans-serif; background:var(--paper); color:var(--ink); min-height:100vh; }
+  header { padding: 28px 20px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { margin:0; font-size:22px; }
+  header p { margin:6px 0 0; color:var(--muted); font-size:14px; }
+  #authBar { max-width:640px; margin:16px auto 0; padding:0 20px; display:flex; justify-content:flex-end; gap:8px; font-size:14px; }
+  #authBar button { background:none; border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; color:var(--ink); }
+  main { max-width:640px; margin:20px auto 60px; padding:0 20px; }
+  .lesson { background:white; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .lesson h3 { margin:0 0 4px; font-size:16px; }
+  .lesson .subject { color:var(--muted); font-size:13px; }
+  .lesson .price { font-weight:bold; white-space:nowrap; }
+  button.buy { background:var(--accent); color:white; border:none; border-radius:8px; padding:10px 18px; font-size:14px; cursor:pointer; }
+  button.buy:disabled { opacity:0.5; cursor:not-allowed; }
+  #status { max-width:640px; margin:12px auto; padding:10px 20px; font-size:14px; color:var(--muted); }
+  #status.error { color:#a4342a; }
+  #loginPanel { max-width:640px; margin:40px auto; padding:24px 20px; text-align:center; color:var(--muted); }
+  #loginPanel input { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; margin-bottom:10px; font-size:14px; }
+  #loginPanel button { background:var(--accent); color:white; border:none; border-radius:8px; padding:10px 20px; cursor:pointer; font-size:14px; width:100%; }
+  #redeemBox { max-width:640px; margin:0 auto 20px; padding:16px 20px; }
+  #redeemBox .card { background:white; border:1px solid var(--line); border-radius:10px; padding:16px; }
+  #redeemBox input { width:70%; padding:8px; border:1px solid var(--line); border-radius:6px; direction:ltr; text-align:left; }
+  #redeemBox button { padding:8px 14px; border:none; border-radius:6px; background:var(--accent); color:white; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>دروس الرياضيات</h1>
+  <p>اشترِ الدرس عبر زين كاش، أو فعّل كوداً حصلت عليه من وكيل موزّع.</p>
+</header>
+
+<div id="authBar"></div>
+<div id="status"></div>
+
+<div id="redeemBox" style="display:none">
+  <div class="card">
+    <label style="font-size:13px;color:#6b6459">كود الإحالة تبعك (شارك مع أصدقائك)</label><br>
+    <span id="myReferralCode" style="font-weight:bold;direction:ltr;display:inline-block"></span>
+    <button id="copyReferralBtn" style="padding:6px 12px;font-size:12px">نسخ</button>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <label style="font-size:13px;color:#6b6459">رقم الواتساب (لإشعارات الشراء - اختياري)</label><br>
+    <input id="phoneInput" placeholder="+9647xxxxxxxx" style="direction:ltr;text-align:left">
+    <button id="savePhoneBtn">حفظ</button>
+    <div class="status" id="phoneStatus"></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <label style="font-size:13px;color:#6b6459">كود خصم (اختياري، يُطبَّق عند الدفع بزين كاش)</label><br>
+    <input id="discountCodeInput" placeholder="مثال: RAMADAN20" style="direction:ltr;text-align:left">
+  </div>
+  <div class="card" style="margin-top:10px">
+    <label style="font-size:13px;color:#6b6459">عندك كود تفعيل؟</label><br>
+    <input id="redeemInput" placeholder="XXXXX-XXXXX">
+    <button id="redeemBtn">تفعيل</button>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <input id="searchInput" placeholder="ابحث بالعنوان أو المادة...">
+  </div>
+</div>
+
+<main id="lessonsList"></main>
+
+<div id="loginPanel" style="display:none">
+  <p>سجّل الدخول لعرض الدروس المتاحة والشراء.</p>
+  <input id="emailInput" type="email" placeholder="بريدك الإلكتروني">
+  <button id="magicLinkBtn">إرسال رابط الدخول</button>
+</div>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  // TODO: استبدل هذا بإعدادات مشروع Supabase الفعلي عندك (Project Settings > API)
+  const SUPABASE_URL = "https://yaedtkfcpygpbyzzkwya.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZWR0a2ZjcHlncGJ5enprd3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTg1MjcsImV4cCI6MjA5OTk3NDUyN30.5ZYj9CwEaaUUF3QcV55fWnes7qVxlaGq3-UYq-f6wtI";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // تسجيل أي خطأ غير متوقع بالصفحة - يساعدك تعرف فيه مشكلة حتى لو الطالب ما اشتكى لك
+  window.onerror = function (message, source, lineno, colno) {
+    fetch(`${SUPABASE_URL}/functions/v1/log-client-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ platform: "web", message: String(message), context: { page: "index", source, lineno, colno } }),
+    }).catch(() => {});
+  };
+
+  const authBar = document.getElementById("authBar");
+  const statusEl = document.getElementById("status");
+  const listEl = document.getElementById("lessonsList");
+  const loginPanel = document.getElementById("loginPanel");
+  const redeemBox = document.getElementById("redeemBox");
+
+  function setStatus(msg, isError = false) {
+    statusEl.textContent = msg || "";
+    statusEl.classList.toggle("error", isError);
+  }
+
+  document.getElementById("magicLinkBtn").addEventListener("click", async () => {
+    const email = document.getElementById("emailInput").value.trim();
+    if (!email) return;
+    // كود الإحالة (لو الطالب دخل عبر رابط صديق مثل ?ref=ABC123) يُمرَّر وقت التسجيل
+    // فقط، ويُقرأ تلقائياً بواسطة trigger قاعدة البيانات عند إنشاء الحساب لأول مرة
+    const referralCode = new URLSearchParams(window.location.search).get("ref");
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: referralCode ? { data: { referral_code: referralCode } } : undefined,
+    });
+    setStatus(error ? error.message : "تفقّد بريدك الإلكتروني للدخول", !!error);
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    renderAuth(session);
+  });
+
+  supabase.auth.getSession().then(({ data }) => renderAuth(data.session));
+
+  function renderAuth(session) {
+    if (session && session.user) {
+      authBar.innerHTML = `<span>${session.user.email}</span>`;
+      const logoutBtn = document.createElement("button");
+      logoutBtn.textContent = "خروج";
+      logoutBtn.onclick = () => supabase.auth.signOut();
+      authBar.appendChild(logoutBtn);
+      loginPanel.style.display = "none";
+      redeemBox.style.display = "block";
+      loadLessons(session);
+      loadReferralCode();
+    } else {
+      authBar.innerHTML = "";
+      listEl.innerHTML = "";
+      redeemBox.style.display = "none";
+      loginPanel.style.display = "block";
+    }
+  }
+
+  async function loadReferralCode() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session.user.id;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("referral_code")
+      .eq("id", userId)
+      .single();
+    if (!error && data) {
+      const link = `${window.location.origin}${window.location.pathname}?ref=${data.referral_code}`;
+      document.getElementById("myReferralCode").textContent = link;
+      document.getElementById("copyReferralBtn").onclick = () => {
+        navigator.clipboard.writeText(link);
+      };
+    }
+  }
+
+  let allLessons = [];
+  let allBundles = [];
+
+  async function loadLessons() {
+    setStatus("جاري تحميل الدروس...");
+    const { data: lessons, error } = await supabase
+      .from("lessons")
+      .select("id, title, subject, price")
+      .eq("status", "published");
+
+    const { data: bundles } = await supabase
+      .from("bundles")
+      .select("id, title, subject, price")
+      .eq("status", "published");
+
+    if (error) {
+      setStatus("تعذر تحميل الدروس: " + error.message, true);
+      return;
+    }
+
+    allLessons = lessons || [];
+    allBundles = bundles || [];
+    renderLessons(document.getElementById("searchInput").value.trim());
+  }
+
+  function renderLessons(searchTerm) {
+    const term = (searchTerm || "").toLowerCase();
+    const filteredLessons = allLessons.filter((l) =>
+      !term || (l.title || "").toLowerCase().includes(term) || (l.subject || "").toLowerCase().includes(term)
+    );
+    const filteredBundles = allBundles.filter((b) =>
+      !term || (b.title || "").toLowerCase().includes(term) || (b.subject || "").toLowerCase().includes(term)
+    );
+
+    listEl.innerHTML = "";
+    if (filteredLessons.length === 0 && filteredBundles.length === 0) {
+      setStatus(term ? "لا توجد نتائج مطابقة." : "لا توجد دروس منشورة حالياً.");
+      return;
+    }
+    setStatus("");
+
+    filteredBundles.forEach((bundle) => {
+      const row = document.createElement("div");
+      row.className = "lesson";
+      row.innerHTML = `
+        <div>
+          <h3>📦 ${escapeHtml(bundle.title || "")} <span style="font-size:11px;color:#2f5d50">حزمة</span></h3>
+          <div class="subject">${escapeHtml(bundle.subject || "")}</div>
+        </div>
+        <div style="text-align:left">
+          <div class="price">${bundle.price} د.ع</div>
+          <button class="buy">ادفع بزين كاش</button>
+        </div>
+      `;
+      row.querySelector("button.buy").addEventListener("click", (e) => buyItem({ bundleId: bundle.id }, e.target));
+      listEl.appendChild(row);
+    });
+
+    filteredLessons.forEach((lesson) => {
+      const row = document.createElement("div");
+      row.className = "lesson";
+      row.innerHTML = `
+        <div>
+          <h3>${escapeHtml(lesson.title || "")}</h3>
+          <div class="subject">${escapeHtml(lesson.subject || "")}</div>
+          <div class="subject" data-rating-for="${lesson.id}">...</div>
+        </div>
+        <div style="text-align:left">
+          <div class="price">${lesson.price} د.ع</div>
+          <button class="buy">ادفع بزين كاش</button>
+        </div>
+      `;
+      row.querySelector("button.buy").addEventListener("click", (e) => buyItem({ lessonId: lesson.id }, e.target));
+      listEl.appendChild(row);
+    });
+
+    if (filteredLessons.length > 0) {
+      loadRatingsBatch(filteredLessons.map((l) => l.id));
+    }
+  }
+
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    renderLessons(e.target.value.trim());
+  });
+
+  // طلب واحد فقط لكل الدروس المعروضة بدل طلب منفصل لكل درس - أسرع بكثير
+  // مع عدد دروس أكبر (كان سابقاً N طلب شبكة منفصل، الحين طلب واحد ثابت)
+  async function loadRatingsBatch(lessonIds) {
+    const { data, error } = await supabase
+      .from("lesson_reviews")
+      .select("lesson_id, rating")
+      .in("lesson_id", lessonIds);
+
+    if (error || !data) return;
+
+    const grouped = {};
+    data.forEach((r) => {
+      if (!grouped[r.lesson_id]) grouped[r.lesson_id] = [];
+      grouped[r.lesson_id].push(r.rating);
+    });
+
+    lessonIds.forEach((id) => {
+      const el = document.querySelector(`[data-rating-for="${id}"]`);
+      if (!el) return;
+      const ratings = grouped[id];
+      if (!ratings || ratings.length === 0) {
+        el.textContent = "لا توجد تقييمات بعد";
+        return;
+      }
+      const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+      el.textContent = `⭐ ${avg.toFixed(1)} (${ratings.length} تقييم)`;
+    });
+  }
+
+  async function buyItem(target, btn) {
+    btn.disabled = true;
+    btn.textContent = "جاري التحويل لصفحة الدفع...";
+    setStatus("");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session.access_token;
+      const discountCode = document.getElementById("discountCodeInput").value.trim();
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-zaincash-checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ ...target, discountCode: discountCode || undefined }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "فشل بدء عملية الدفع");
+      window.location.href = result.payUrl;
+    } catch (e) {
+      setStatus("تعذر بدء عملية الدفع: " + e.message, true);
+      btn.disabled = false;
+      btn.textContent = "ادفع بزين كاش";
+    }
+  }
+
+  document.getElementById("savePhoneBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("phoneStatus");
+    const phone = document.getElementById("phoneInput").value.trim();
+    if (!phone) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session.user.id;
+
+    const { error } = await supabase.from("profiles").update({ phone }).eq("id", userId);
+    if (error) {
+      statusEl.textContent = "خطأ: " + error.message;
+      statusEl.classList.add("error");
+      return;
+    }
+    statusEl.textContent = "تم الحفظ";
+    statusEl.classList.remove("error");
+  });
+
+  document.getElementById("redeemBtn").addEventListener("click", async () => {
+    const input = document.getElementById("redeemInput");
+    const code = input.value.trim();
+    if (!code) return;
+    setStatus("جاري التحقق من الكود...");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session.access_token;
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/redeem-code`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ code }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "فشل تفعيل الكود");
+      setStatus("تم تفعيل الدرس بنجاح! ✅");
+      input.value = "";
+    } catch (e) {
+      setStatus("خطأ: " + e.message, true);
+    }
+  });
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+</script>
+
+</body>
+</html>

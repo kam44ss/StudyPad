@@ -1,0 +1,55 @@
+name: نشر تلقائي لـ Supabase
+
+# يشتغل تلقائياً بمجرد ما تعمل push لفرع main - أي تعديل بقاعدة البيانات
+# أو بالـ Edge Functions ينشر مباشرة لحساب Supabase الفعلي بدون أي خطوة يدوية.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: تحميل الكود
+        uses: actions/checkout@v4
+
+      - name: تثبيت Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: ربط المشروع
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: نشر ملفات الهجرة (قاعدة البيانات)
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: نشر كل الـ Edge Functions
+        run: |
+          for dir in supabase/functions/*/; do
+            fn=$(basename "$dir")
+            if [ "$fn" = "_shared" ]; then
+              continue
+            fi
+            if [ "$fn" = "zaincash-redirect" ]; then
+              # هذه الفنكشن الوحيدة اللي يستدعيها زين كاش مباشرة بدون جلسة Supabase،
+              # فتحتاج تعطيل التحقق التلقائي من التوكن على مستوى المنصة (التحقق الحقيقي
+              # من توقيع JWT يصير يدوياً داخل الكود نفسه عبر مفتاح زين كاش السري)
+              echo "نشر: $fn (بدون التحقق التلقائي من الجلسة)"
+              supabase functions deploy "$fn" --no-verify-jwt
+            else
+              echo "نشر: $fn"
+              supabase functions deploy "$fn"
+            fi
+          done
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

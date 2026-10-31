@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة المدرس</title>
+<style>
+  :root { --ink:#1c2321; --paper:#faf8f5; --line:#ddd6cc; --accent:#2f5d50; --muted:#6b6459; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Tahoma,'Segoe UI',sans-serif; background:var(--paper); color:var(--ink); }
+  header { padding:24px 20px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  main { max-width:760px; margin:0 auto; padding:20px; }
+  section { background:white; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:20px; }
+  section h2 { margin:0 0 14px; font-size:16px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:8px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+  button { margin-top:14px; background:var(--accent); color:white; border:none; border-radius:8px; padding:10px 18px; cursor:pointer; font-size:14px; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  .status { font-size:13px; color:var(--muted); margin-top:8px; }
+  .status.error { color:#a4342a; }
+  .lesson-card { border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:10px; }
+  .lesson-card h3 { margin:0 0 4px; font-size:15px; }
+  .badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:10px; background:#eee; margin-inline-start:6px; }
+  #loginPanel { text-align:center; padding:40px 20px; }
+  #loginPanel input { margin-bottom:10px; max-width:300px; margin-inline:auto; }
+  .content-item { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; }
+</style>
+</head>
+<body>
+<header><h1>لوحة المدرس</h1></header>
+
+<div id="loginPanel" style="display:none">
+  <p>سجّل دخول بحساب المدرس</p>
+  <input id="emailInput" type="email" placeholder="بريدك الإلكتروني">
+  <br><button id="magicLinkBtn">إرسال رابط الدخول</button>
+</div>
+
+<main id="appPanel" style="display:none">
+  <section>
+    <h2>إنشاء درس جديد</h2>
+    <label>عنوان الدرس</label>
+    <input id="lessonTitle" placeholder="مثال: المعادلات التربيعية">
+    <div class="row">
+      <div><label>المادة/الصف</label><input id="lessonSubject" placeholder="سادس علمي"></div>
+      <div>
+        <label>النوع</label>
+        <select id="lessonType">
+          <option value="mixed">مزيج (فيديو+ملفات+اختبار)</option>
+          <option value="video">فيديو فقط</option>
+          <option value="pdf">ملف فقط</option>
+          <option value="quiz">اختبار فقط</option>
+        </select>
+      </div>
+    </div>
+    <label>السعر (دينار عراقي)</label>
+    <input id="lessonPrice" type="number" min="0" placeholder="25000">
+    <button id="createLessonBtn">إنشاء الدرس (كمسودة)</button>
+    <div class="status" id="lessonStatus"></div>
+  </section>
+
+  <section>
+    <h2>أرباحي</h2>
+    <button id="checkMyEarningsBtn">عرض رصيدي</button>
+    <div class="status" id="myEarningsResult"></div>
+  </section>
+
+  <section>
+    <h2>إنشاء حزمة/كورس (عدة دروس بسعر واحد)</h2>
+    <label>عنوان الحزمة</label>
+    <input id="bundleTitle" placeholder="مثال: كورس الرياضيات - سادس علمي كامل">
+    <div class="row">
+      <div><label>المادة/الصف</label><input id="bundleSubject" placeholder="سادس علمي"></div>
+      <div><label>السعر (دينار عراقي)</label><input id="bundlePrice" type="number" min="0" placeholder="150000"></div>
+    </div>
+    <label>اختر الدروس المشمولة (Ctrl/Cmd + نقر لاختيار أكثر من درس)</label>
+    <select id="bundleLessonsSelect" multiple size="6"></select>
+    <button id="createBundleBtn">إنشاء الحزمة</button>
+    <div class="status" id="bundleStatus"></div>
+  </section>
+
+  <section>
+    <h2>دروسي</h2>
+    <button id="refreshLessonsBtn">تحديث القائمة</button>
+    <div id="lessonsList" style="margin-top:12px"></div>
+  </section>
+</main>
+
+<!-- نافذة إدارة درس: رفع محتوى + إضافة أسئلة + نشر -->
+<div id="lessonManageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4)">
+  <div style="max-width:600px;margin:40px auto;background:white;border-radius:10px;padding:20px;max-height:85vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between">
+      <h2 id="manageLessonTitle" style="margin:0;font-size:16px"></h2>
+      <button onclick="closeManageModal()" style="background:none;color:#000;padding:0">✕</button>
+    </div>
+
+    <h3 style="font-size:14px;margin-top:16px">رفع ملف (فيديو/PDF)</h3>
+    <p style="font-size:12px;color:var(--muted)">الخطة المجانية بـ Supabase تسمح بحد أقصى 50 ميجا للملف الواحد. فيديو أكبر من كذا؟ استخدم رابط خارجي تحت بدل الرفع المباشر.</p>
+    <input type="file" id="fileInput" accept="video/*,application/pdf">
+    <button id="uploadFileBtn">رفع</button>
+    <div class="status" id="uploadStatus"></div>
+
+    <h3 style="font-size:14px;margin-top:16px">أو أضف رابط فيديو خارجي (يوتيوب/فيميو - غير مُدرَج بالعام "Unlisted")</h3>
+    <input id="externalVideoUrl" placeholder="https://youtu.be/... أو https://vimeo.com/...">
+    <button id="addExternalVideoBtn">إضافة الرابط</button>
+    <div class="status" id="externalVideoStatus"></div>
+
+    <div id="contentList" style="margin-top:10px"></div>
+
+    <h3 style="font-size:14px;margin-top:20px">إضافة سؤال اختبار</h3>
+    <label>نص السؤال</label>
+    <textarea id="questionText" rows="2"></textarea>
+    <label>الخيارات (سطر لكل خيار)</label>
+    <textarea id="questionChoices" rows="4" placeholder="خيار 1
+خيار 2
+خيار 3
+خيار 4"></textarea>
+    <label>رقم الخيار الصحيح (يبدأ من 0)</label>
+    <input id="correctIndex" type="number" min="0" value="0">
+    <label>تلميح (اختياري - يظهر للطالب كمساعدة بدون كشف الإجابة)</label>
+    <input id="questionHint" placeholder="مثال: راجع قانون المساحة">
+    <button id="addQuestionBtn">إضافة السؤال</button>
+    <div class="status" id="questionStatus"></div>
+    <div id="questionsList" style="margin-top:10px"></div>
+
+    <h3 style="font-size:14px;margin-top:20px">إضافة بطاقة تعليمية (Flashcard)</h3>
+    <label>الوجه الأمامي (سؤال/مصطلح)</label>
+    <input id="flashcardFront" placeholder="مثال: قانون مساحة الدائرة">
+    <label>الوجه الخلفي (الجواب)</label>
+    <input id="flashcardBack" placeholder="مثال: π × نق²">
+    <button id="addFlashcardBtn">إضافة البطاقة</button>
+    <div class="status" id="flashcardStatus"></div>
+    <div id="flashcardsList" style="margin-top:10px"></div>
+
+    <button id="publishBtn" style="background:#a4342a;margin-top:24px">نشر الدرس (يصير مرئي للطلاب)</button>
+  </div>
+</div>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  // TODO: نفس إعدادات مشروع Supabase المستخدمة بباقي الصفحات
+  const SUPABASE_URL = "https://yaedtkfcpygpbyzzkwya.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhZWR0a2ZjcHlncGJ5enprd3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTg1MjcsImV4cCI6MjA5OTk3NDUyN30.5ZYj9CwEaaUUF3QcV55fWnes7qVxlaGq3-UYq-f6wtI";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  window.onerror = function (message, source, lineno, colno) {
+    fetch(`${SUPABASE_URL}/functions/v1/log-client-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ platform: "web", message: String(message), context: { page: "teacher", source, lineno, colno } }),
+    }).catch(() => {});
+  };
+
+  async function callFunction(name, body) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session.access_token;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "حدث خطأ");
+    return result;
+  }
+  const loginPanel = document.getElementById("loginPanel");
+  const appPanel = document.getElementById("appPanel");
+  let currentLessonId = null;
+
+  document.getElementById("magicLinkBtn").addEventListener("click", async () => {
+    const email = document.getElementById("emailInput").value.trim();
+    if (!email) return;
+    await supabase.auth.signInWithOtp({ email });
+    alert("تفقّد بريدك الإلكتروني للدخول");
+  });
+
+  supabase.auth.onAuthStateChange((_e, session) => render(session));
+  supabase.auth.getSession().then(({ data }) => render(data.session));
+
+  function render(session) {
+    if (session) {
+      loginPanel.style.display = "none";
+      appPanel.style.display = "block";
+      loadLessons();
+    } else {
+      loginPanel.style.display = "block";
+      appPanel.style.display = "none";
+    }
+  }
+
+  document.getElementById("checkMyEarningsBtn").addEventListener("click", async () => {
+    const resultEl = document.getElementById("myEarningsResult");
+    try {
+      const result = await callFunction("get-teacher-earnings", {});
+      resultEl.textContent =
+        `الأرباح: ${result.total_earned} — المدفوع لي: ${result.total_paid_out} — المتبقي: ${result.balance_due} — عدد المبيعات: ${result.sales_count}`;
+      resultEl.classList.remove("error");
+    } catch (e) {
+      resultEl.textContent = "خطأ: " + e.message;
+      resultEl.classList.add("error");
+    }
+  });
+
+  document.getElementById("createLessonBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("lessonStatus");
+    const title = document.getElementById("lessonTitle").value.trim();
+    const subject = document.getElementById("lessonSubject").value.trim();
+    const type = document.getElementById("lessonType").value;
+    const price = Number(document.getElementById("lessonPrice").value);
+
+    if (!title || !price) {
+      statusEl.textContent = "العنوان والسعر مطلوبان";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session.user.id;
+
+    const { error } = await supabase.from("lessons").insert({
+      teacher_id: userId,
+      title, subject, type, price,
+      price_type: "one_time",
+      status: "draft",
+    });
+
+    if (error) {
+      statusEl.textContent = "خطأ: " + error.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = "تم إنشاء الدرس كمسودة - ارفع المحتوى وانشره من القائمة تحت";
+    statusEl.classList.remove("error");
+    document.getElementById("lessonTitle").value = "";
+    document.getElementById("lessonPrice").value = "";
+    loadLessons();
+  });
+
+  async function loadLessons() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session.user.id;
+
+    const { data: lessons, error } = await supabase
+      .from("lessons")
+      .select("id, title, subject, price, status")
+      .eq("teacher_id", userId)
+      .order("created_at", { ascending: false });
+
+    const listEl = document.getElementById("lessonsList");
+    listEl.innerHTML = "";
+
+    // نعبّي قائمة اختيار الدروس لبناء حزمة منها كمان
+    const bundleSelect = document.getElementById("bundleLessonsSelect");
+    bundleSelect.innerHTML = "";
+
+    if (error || !lessons) return;
+
+    lessons.forEach((lesson) => {
+      const div = document.createElement("div");
+      div.className = "lesson-card";
+      div.innerHTML = `
+        <h3>${escapeHtml(lesson.title)} <span class="badge">${lesson.status}</span></h3>
+        <div style="font-size:13px;color:#6b6459">${escapeHtml(lesson.subject || "")} — ${lesson.price} د.ع</div>
+        <button data-id="${lesson.id}" data-title="${escapeHtml(lesson.title)}" class="manage-btn">إدارة المحتوى</button>
+      `;
+      div.querySelector(".manage-btn").addEventListener("click", (e) => {
+        openManageModal(e.target.dataset.id, e.target.dataset.title);
+      });
+      listEl.appendChild(div);
+
+      const opt = document.createElement("option");
+      opt.value = lesson.id;
+      opt.textContent = `${lesson.title} (${lesson.status})`;
+      bundleSelect.appendChild(opt);
+    });
+  }
+
+  document.getElementById("createBundleBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("bundleStatus");
+    const title = document.getElementById("bundleTitle").value.trim();
+    const subject = document.getElementById("bundleSubject").value.trim();
+    const price = Number(document.getElementById("bundlePrice").value);
+    const selectedOptions = Array.from(document.getElementById("bundleLessonsSelect").selectedOptions);
+    const lessonIds = selectedOptions.map((o) => o.value);
+
+    if (!title || !price || lessonIds.length < 2) {
+      statusEl.textContent = "العنوان والسعر مطلوبان، واختر درسين على الأقل";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session.user.id;
+
+    const { data: bundle, error: bundleErr } = await supabase
+      .from("bundles")
+      .insert({ teacher_id: userId, title, subject, price, status: "published" })
+      .select("id")
+      .single();
+
+    if (bundleErr || !bundle) {
+      statusEl.textContent = "خطأ: " + (bundleErr ? bundleErr.message : "فشل الإنشاء");
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const rows = lessonIds.map((lessonId) => ({ bundle_id: bundle.id, lesson_id: lessonId }));
+    const { error: linkErr } = await supabase.from("bundle_lessons").insert(rows);
+
+    if (linkErr) {
+      statusEl.textContent = "تم إنشاء الحزمة لكن فشل ربط الدروس: " + linkErr.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = `تم إنشاء ونشر الحزمة بـ ${lessonIds.length} دروس`;
+    statusEl.classList.remove("error");
+    document.getElementById("bundleTitle").value = "";
+    document.getElementById("bundlePrice").value = "";
+  });
+
+  document.getElementById("refreshLessonsBtn").addEventListener("click", loadLessons);
+
+  window.closeManageModal = function () {
+    document.getElementById("lessonManageModal").style.display = "none";
+    currentLessonId = null;
+  };
+
+  async function openManageModal(lessonId, title) {
+    currentLessonId = lessonId;
+    document.getElementById("manageLessonTitle").textContent = title;
+    document.getElementById("lessonManageModal").style.display = "block";
+    await loadContentList();
+    await loadQuestionsList();
+    await loadFlashcardsList();
+  }
+
+  async function loadContentList() {
+    const { data, error } = await supabase
+      .from("lesson_content")
+      .select("id, type, url, caption_url, order_index")
+      .eq("lesson_id", currentLessonId)
+      .order("order_index");
+
+    const listEl = document.getElementById("contentList");
+    listEl.innerHTML = "";
+    if (error || !data) return;
+    data.forEach((item) => {
+      const isExternal = /^https?:\/\//i.test(item.url || "");
+      const div = document.createElement("div");
+      div.className = "content-item";
+      div.style.flexDirection = "column";
+      div.style.alignItems = "stretch";
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>${item.type}${isExternal ? " (رابط خارجي)" : ""}</span>
+          <span>${item.url ? item.url.split("/").pop() : ""}</span>
+          <button data-id="${item.id}" data-path="${isExternal ? "" : item.url}" class="delete-content-btn" style="margin:0;padding:4px 10px;background:#a4342a">حذف</button>
+        </div>
+        ${item.type === "video" ? `
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <span style="font-size:11px;color:var(--muted)">${item.caption_url ? "✅ فيه ترجمة" : "بدون ترجمة"}</span>
+          <input type="file" accept=".vtt" data-caption-for="${item.id}" style="font-size:11px;flex:1">
+          <button data-caption-upload="${item.id}" style="margin:0;padding:4px 10px;font-size:11px">رفع ترجمة (.vtt)</button>
+        </div>` : ""}
+      `;
+      div.querySelector(".delete-content-btn").addEventListener("click", async (e) => {
+        const id = e.target.dataset.id;
+        const path = e.target.dataset.path;
+        if (!confirm("حذف هذا المحتوى نهائياً؟")) return;
+
+        await supabase.from("lesson_content").delete().eq("id", id);
+        if (path) {
+          // نحذف الملف الفعلي من التخزين كمان عشان ما يضيع من مساحتك المحدودة (1 جيجا بالخطة المجانية)
+          await supabase.storage.from("lesson-content").remove([path]);
+        }
+        await loadContentList();
+      });
+
+      const captionBtn = div.querySelector(`[data-caption-upload="${item.id}"]`);
+      if (captionBtn) {
+        captionBtn.addEventListener("click", async () => {
+          const fileInput = div.querySelector(`[data-caption-for="${item.id}"]`);
+          const file = fileInput.files[0];
+          if (!file) return;
+
+          const path = `${currentLessonId}/captions/${Date.now()}_${file.name}`;
+          const { error: upErr } = await supabase.storage.from("lesson-content").upload(path, file);
+          if (upErr) {
+            alert("خطأ برفع الترجمة: " + upErr.message);
+            return;
+          }
+          await supabase.from("lesson_content").update({ caption_url: path }).eq("id", item.id);
+          await loadContentList();
+        });
+      }
+
+      listEl.appendChild(div);
+    });
+  }
+
+  async function loadQuestionsList() {
+    const { data, error } = await supabase
+      .from("quiz_questions")
+      .select("id, text, choices, correct_index, hint")
+      .eq("lesson_id", currentLessonId);
+
+    const listEl = document.getElementById("questionsList");
+    listEl.innerHTML = "";
+    if (error || !data) return;
+
+    data.forEach((q) => {
+      const div = document.createElement("div");
+      div.className = "content-item";
+      div.style.flexDirection = "column";
+      div.style.alignItems = "stretch";
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>${escapeHtml(q.text)}</span>
+          <span>
+            <button data-edit-q="${q.id}" style="margin:0;padding:4px 10px;font-size:11px">تعديل</button>
+            <button data-del-q="${q.id}" style="margin:0;padding:4px 10px;font-size:11px;background:#a4342a">حذف</button>
+          </span>
+        </div>
+        <div data-edit-form-q="${q.id}" style="display:none;margin-top:8px">
+          <textarea data-field="text" rows="2">${escapeHtml(q.text)}</textarea>
+          <textarea data-field="choices" rows="4">${q.choices.map(escapeHtml).join("\n")}</textarea>
+          <label style="font-size:11px">رقم الخيار الصحيح</label>
+          <input data-field="correct_index" type="number" min="0" value="${q.correct_index}">
+          <label style="font-size:11px">تلميح</label>
+          <input data-field="hint" value="${escapeHtml(q.hint || "")}">
+          <button data-save-q="${q.id}" style="margin-top:6px">حفظ التعديل</button>
+        </div>
+      `;
+
+      div.querySelector(`[data-edit-q="${q.id}"]`).addEventListener("click", () => {
+        const form = div.querySelector(`[data-edit-form-q="${q.id}"]`);
+        form.style.display = form.style.display === "none" ? "block" : "none";
+      });
+
+      div.querySelector(`[data-del-q="${q.id}"]`).addEventListener("click", async () => {
+        if (!confirm("حذف هذا السؤال نهائياً؟")) return;
+        await supabase.from("quiz_questions").delete().eq("id", q.id);
+        await loadQuestionsList();
+      });
+
+      div.querySelector(`[data-save-q="${q.id}"]`).addEventListener("click", async () => {
+        const form = div.querySelector(`[data-edit-form-q="${q.id}"]`);
+        const newText = form.querySelector('[data-field="text"]').value.trim();
+        const newChoices = form.querySelector('[data-field="choices"]').value
+          .split("\n").map((c) => c.trim()).filter(Boolean);
+        const newCorrect = Number(form.querySelector('[data-field="correct_index"]').value);
+        const newHint = form.querySelector('[data-field="hint"]').value.trim();
+
+        if (!newText || newChoices.length < 2 || newCorrect < 0 || newCorrect >= newChoices.length) {
+          alert("تأكد من نص السؤال، خيارين على الأقل، ورقم صحيح للإجابة");
+          return;
+        }
+
+        await supabase.from("quiz_questions").update({
+          text: newText, choices: newChoices, correct_index: newCorrect, hint: newHint || null,
+        }).eq("id", q.id);
+        await loadQuestionsList();
+      });
+
+      listEl.appendChild(div);
+    });
+  }
+
+  async function loadFlashcardsList() {
+    const { data, error } = await supabase
+      .from("flashcards")
+      .select("id, front_text, back_text")
+      .eq("lesson_id", currentLessonId);
+
+    const listEl = document.getElementById("flashcardsList");
+    listEl.innerHTML = "";
+    if (error || !data) return;
+
+    data.forEach((fc) => {
+      const div = document.createElement("div");
+      div.className = "content-item";
+      div.style.flexDirection = "column";
+      div.style.alignItems = "stretch";
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>${escapeHtml(fc.front_text)} → ${escapeHtml(fc.back_text)}</span>
+          <span>
+            <button data-edit-fc="${fc.id}" style="margin:0;padding:4px 10px;font-size:11px">تعديل</button>
+            <button data-del-fc="${fc.id}" style="margin:0;padding:4px 10px;font-size:11px;background:#a4342a">حذف</button>
+          </span>
+        </div>
+        <div data-edit-form-fc="${fc.id}" style="display:none;margin-top:8px">
+          <input data-field="front" value="${escapeHtml(fc.front_text)}">
+          <input data-field="back" value="${escapeHtml(fc.back_text)}">
+          <button data-save-fc="${fc.id}" style="margin-top:6px">حفظ التعديل</button>
+        </div>
+      `;
+
+      div.querySelector(`[data-edit-fc="${fc.id}"]`).addEventListener("click", () => {
+        const form = div.querySelector(`[data-edit-form-fc="${fc.id}"]`);
+        form.style.display = form.style.display === "none" ? "block" : "none";
+      });
+
+      div.querySelector(`[data-del-fc="${fc.id}"]`).addEventListener("click", async () => {
+        if (!confirm("حذف هذه البطاقة نهائياً؟")) return;
+        await supabase.from("flashcards").delete().eq("id", fc.id);
+        await loadFlashcardsList();
+      });
+
+      div.querySelector(`[data-save-fc="${fc.id}"]`).addEventListener("click", async () => {
+        const form = div.querySelector(`[data-edit-form-fc="${fc.id}"]`);
+        const newFront = form.querySelector('[data-field="front"]').value.trim();
+        const newBack = form.querySelector('[data-field="back"]').value.trim();
+        if (!newFront || !newBack) {
+          alert("الوجهين مطلوبان");
+          return;
+        }
+        await supabase.from("flashcards").update({
+          front_text: newFront, back_text: newBack,
+        }).eq("id", fc.id);
+        await loadFlashcardsList();
+      });
+
+      listEl.appendChild(div);
+    });
+  }
+
+  document.getElementById("uploadFileBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("uploadStatus");
+    const fileInput = document.getElementById("fileInput");
+    const file = fileInput.files[0];
+    if (!file || !currentLessonId) return;
+
+    statusEl.textContent = "جاري الرفع...";
+    statusEl.classList.remove("error");
+
+    const path = `${currentLessonId}/${Date.now()}_${file.name}`;
+    const { error: uploadErr } = await supabase.storage
+      .from("lesson-content")
+      .upload(path, file);
+
+    if (uploadErr) {
+      statusEl.textContent = "خطأ بالرفع: " + uploadErr.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const contentType = file.type.startsWith("video") ? "video" : "pdf";
+    const { error: insertErr } = await supabase.from("lesson_content").insert({
+      lesson_id: currentLessonId,
+      type: contentType,
+      url: path, // مسار داخلي بالـ bucket الخاص - يُحوَّل لرابط موقّع مؤقت وقت العرض فقط
+      order_index: 0,
+    });
+
+    if (insertErr) {
+      statusEl.textContent = "خطأ بالحفظ: " + insertErr.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = "تم الرفع بنجاح";
+    fileInput.value = "";
+    await loadContentList();
+  });
+
+  document.getElementById("addExternalVideoBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("externalVideoStatus");
+    const input = document.getElementById("externalVideoUrl");
+    const url = input.value.trim();
+
+    if (!url || !currentLessonId) return;
+    if (!/^https?:\/\//i.test(url)) {
+      statusEl.textContent = "الرابط لازم يبدأ بـ https://";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const { error } = await supabase.from("lesson_content").insert({
+      lesson_id: currentLessonId,
+      type: "video",
+      url, // رابط خارجي كامل - ما يحتاج تخزين أو رابط موقّت، يُعرض كما هو
+      order_index: 0,
+    });
+
+    if (error) {
+      statusEl.textContent = "خطأ: " + error.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = "تمت إضافة الرابط";
+    statusEl.classList.remove("error");
+    input.value = "";
+    await loadContentList();
+  });
+
+  document.getElementById("addQuestionBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("questionStatus");
+    const text = document.getElementById("questionText").value.trim();
+    const choicesRaw = document.getElementById("questionChoices").value.trim();
+    const correctIndex = Number(document.getElementById("correctIndex").value);
+    const hint = document.getElementById("questionHint").value.trim();
+    const choices = choicesRaw.split("\n").map((c) => c.trim()).filter(Boolean);
+
+    if (!text || choices.length < 2 || correctIndex < 0 || correctIndex >= choices.length) {
+      statusEl.textContent = "تأكد من نص السؤال، خيارين على الأقل، ورقم صحيح للإجابة";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const { error } = await supabase.from("quiz_questions").insert({
+      lesson_id: currentLessonId,
+      text, choices, correct_index: correctIndex,
+      hint: hint || null,
+    });
+
+    if (error) {
+      statusEl.textContent = "خطأ: " + error.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = "تمت إضافة السؤال";
+    statusEl.classList.remove("error");
+    document.getElementById("questionText").value = "";
+    document.getElementById("questionChoices").value = "";
+    document.getElementById("questionHint").value = "";
+    await loadQuestionsList();
+  });
+
+  document.getElementById("addFlashcardBtn").addEventListener("click", async () => {
+    const statusEl = document.getElementById("flashcardStatus");
+    const front = document.getElementById("flashcardFront").value.trim();
+    const back = document.getElementById("flashcardBack").value.trim();
+
+    if (!front || !back) {
+      statusEl.textContent = "الوجهين مطلوبان";
+      statusEl.classList.add("error");
+      return;
+    }
+
+    const { error } = await supabase.from("flashcards").insert({
+      lesson_id: currentLessonId,
+      front_text: front,
+      back_text: back,
+    });
+
+    if (error) {
+      statusEl.textContent = "خطأ: " + error.message;
+      statusEl.classList.add("error");
+      return;
+    }
+
+    statusEl.textContent = "تمت إضافة البطاقة";
+    statusEl.classList.remove("error");
+    document.getElementById("flashcardFront").value = "";
+    document.getElementById("flashcardBack").value = "";
+    await loadFlashcardsList();
+  });
+
+  document.getElementById("publishBtn").addEventListener("click", async () => {
+    if (!currentLessonId) return;
+    const { error } = await supabase
+      .from("lessons")
+      .update({ status: "published" })
+      .eq("id", currentLessonId);
+    if (!error) {
+      alert("تم نشر الدرس، صار يظهر للطلاب");
+      closeManageModal();
+      loadLessons();
+    } else {
+      alert("خطأ: " + error.message);
+    }
+  });
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+</script>
+</body>
+</html>
